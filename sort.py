@@ -60,7 +60,7 @@ def is_file(path, file_type):
     path.rename(Path(path.parent, new_name))
     path = Path(Path(path.parent, new_name))
     if file_type == 'archives':
-        archive = ZipFile(path)
+        archive = ZipFile(path, 'r')
         n_path = Path(START_PATH, file_type, path.name.rstrip(path.suffix))
         # проверяем существует ли папка с таким именем
         nn = 1
@@ -72,6 +72,7 @@ def is_file(path, file_type):
                 n_path = Path(START_PATH, file_type, f'{path.name.rstrip(path.suffix)}_{nn}')
         # распаковываем архив
         archive.extractall(n_path.absolute())
+        archive.close()
     else:
         n_path = Path(START_PATH, file_type, path.name)
         n = 1
