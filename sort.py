@@ -73,6 +73,7 @@ def is_file(path, file_type):
         # распаковываем архив
         archive.extractall(n_path.absolute())
         archive.close()
+        path.unlink()
     else:
         n_path = Path(START_PATH, file_type, path.name)
         n = 1
