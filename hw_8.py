@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 def get_birthdays_per_week(users: list):
     """выводит в консоль (при помощи print) список пользователей, которых надо поздравить по дням."""
-    # находим начала и конец недели с учётом смещения на выходные дни
+    # находим начало и конец недели с учётом смещения на выходные дни
     time_now = datetime.now()
     if time_now.weekday() == 0:
         start_day = time_now - timedelta(days=2)
@@ -34,7 +34,8 @@ def get_birthdays_per_week(users: list):
                 birthday_dict[days_week_dict[b_day]].append(user['name'])
             else:
                 birthday_dict[days_week_dict[b_day]] = [user['name']]
-
+                
+    # печатаем результат
     for week, name in birthday_dict.items():
         print(f'{week}: {", ".join(name)}')
 
