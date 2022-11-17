@@ -1,7 +1,5 @@
-import json
-
-
 PHONE_DICT = {}
+EXIT_FLAG = False
 
 
 def input_error(func):
@@ -9,32 +7,23 @@ def input_error(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except IndexError:
-            return 'IndexError'
+        except TypeError:
+            return 'Give me name and phone please'
         except ValueError:
-            return 'ValueError'
+            return 'Phone number is incorrect. It should only be numbers.'
         except KeyError:
-            return 'KeyError'
+            return 'Could not find or create a user with this name'
+        # except IndexError:
+        #     return ''
     return inner
-
-
-def command_parser(command: str) -> list:
-    """Функция возвращает список команда + данные если команда существует иначе None"""
-    # команды в несколько слов
-    if command.lower() in ['show all', 'good bye']:
-        return [command.lower()]
-    # команды в одно слово
-    command_list = ['hello', 'add', 'change', 'phone', 'close', 'exit']
-    if (command := command.lower().split()) and command[0] in command_list:
-        return command
 
 
 @input_error
 def add_command_handler(command_lst: list) -> str:
-    """Обработчик добавления нового контакта или изменения"""
+    """Обработчик добавления нового контакта или изменения существующего"""
     global PHONE_DICT
     if len(command_lst) != 3:
-        raise IndexError
+        raise TypeError
     if not command_lst[2].isdigit():
         raise ValueError
     if command_lst[0] == 'add':
@@ -44,19 +33,19 @@ def add_command_handler(command_lst: list) -> str:
         if not PHONE_DICT.get(command_lst[1]):
             raise KeyError
     PHONE_DICT[command_lst[1]] = command_lst[2]
-    save_json()
-    return 'ok'
+    return f'Phone number for user "{command_lst[1]}" added' if command_lst[0] == 'add'\
+        else f'"{command_lst[1]}" user phone has changed'
 
 
 @input_error
 def phone_command_handler(command_lst: list) -> str:
-    """Обработчик команды phone"""
+    """Обработчик команды phone. Возвращает номер если находит имя"""
     if len(command_lst) != 2:
-        raise IndexError
-    return PHONE_DICT[PHONE_DICT[command_lst[1]]]
+        return 'Give me name please'
+    return PHONE_DICT[command_lst[1]]
 
 
-def show_all() -> str:
+def show_all(*args, **kwargs) -> str:
     """Возвращает все сохранённе контакты в виде текста"""
     text = ''
     for name, phone in PHONE_DICT.items():
@@ -64,68 +53,52 @@ def show_all() -> str:
     return text if text else 'No saved contacts'
 
 
-def save_json(mode_write=True):
-    """Сохраняет изменения PHONE_DICT в файл phone_book.json"""
-    global PHONE_DICT
-    if mode_write:
-        with open('phone_book.json', 'w') as file:
-            file.write(json.dumps(PHONE_DICT))
-    else:
-        try:
-            with open('phone_book.json', 'r') as file:
-                PHONE_DICT = json.loads(file.read())
-        except FileNotFoundError:
-            with open('phone_book.json', 'w') as file:
-                file.write("{}")
+def exit_function(*args, **kwargs) -> str:
+    """"Функция меняет EXIT_FLAG на True для выхода из цикла программы"""
+    global EXIT_FLAG
+    EXIT_FLAG = True
+    return 'Good bye!'
+
+
+def hello(*args, **kwargs):
+    return 'How can I help you?'
+
+
+COMMAND_DICT = {
+    'add': add_command_handler,
+    'change': add_command_handler,
+    'phone': phone_command_handler,
+    'show all': show_all,
+    'good bye': exit_function,
+    'close': exit_function,
+    'exit': exit_function,
+    'hello': hello
+}
+
+
+def command_parser(command: str) -> list:
+    """Функция проверяет существует ли команда в словаре команд, отделяет команду от данных,
+    и возвращает результат соответствующей функции если команда распознана, иначе None"""
+    # команды в несколько слов
+    if command.lower() in [com for com in COMMAND_DICT.keys() if len(com.split()) > 1]:
+        return COMMAND_DICT[command.lower()]()
+    # команды в одно слово
+    commands_list = [com for com in COMMAND_DICT.keys() if len(com.split()) == 1]
+    if (command := command.lower().split()) and command[0] in commands_list:
+        return COMMAND_DICT[command[0]](command)
 
 
 def main():
     """Бот помощник"""
-    global PHONE_DICT
-    # чтение сохранённых контактов из файла
-    save_json(mode_write=False)
-
     while True:
-        command_lst = input()
-        if not command_lst:
+        command_str = input()
+        if not command_str:
             continue
-        command_lst = command_parser(command_lst)
-        if command_lst:
-            # проверяем, нужно ли остановить бота
-            if command_lst[0] in ['good bye', 'close', 'exit']:
-                print('Good bye!')
+        result = command_parser(command_str)
+        if result:
+            print(result)
+            if EXIT_FLAG:
                 break
-
-            # работа с командами
-            elif command_lst[0] == 'hello':
-                print('How can I help you?')
-
-            elif command_lst[0] in ['add', 'change']:
-                if (a := add_command_handler(command_lst)) == 'ok':
-                    if command_lst[0] == 'add':
-                        print(f'Phone number for user "{command_lst[1]}" added')
-                    else:
-                        print(f'"{command_lst[1]}" user phone has changed')
-                elif a == 'IndexError':
-                    print('Give me name and phone please')
-                elif a == 'ValueError':
-                    print('Phone number is incorrect. It should only be numbers.')
-                elif a == 'KeyError':
-                    if command_lst[0] == 'add':
-                        print('This name already exists')
-                    else:
-                        print('This name was not found')
-
-            elif command_lst[0] == 'phone':
-                if (a := phone_command_handler(command_lst)) == 'IndexError':
-                    print('Give me name please')
-                elif a == 'KeyError':
-                    print('This name was not found')
-                else:
-                    print(a)
-
-            elif command_lst[0] == 'show all':
-                print(show_all())
         else:
             print("Command not recognized. Use the command from the list\n"
                   "'hello', 'show all', 'add', 'change', 'phone', 'close', 'exit', 'good bye'")
