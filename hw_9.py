@@ -79,13 +79,13 @@ COMMAND_DICT = {
 def command_parser(command: str) -> list:
     """Функция проверяет существует ли команда в словаре команд, отделяет команду от данных,
     и возвращает результат соответствующей функции если команда распознана, иначе None"""
-    # команды в несколько слов
-    if command.lower() in [com for com in COMMAND_DICT.keys() if len(com.split()) > 1]:
-        return COMMAND_DICT[command.lower()]()
-    # команды в одно слово
-    commands_list = [com for com in COMMAND_DICT.keys() if len(com.split()) == 1]
-    if (command := command.lower().split()) and command[0] in commands_list:
-        return COMMAND_DICT[command[0]](command)
+    command = command.lower()
+    for com in list(COMMAND_DICT.keys()):
+        com_str = com if len(com) == len(command) else f'{com} '
+        if command.find(com_str) == 0:
+            data = command[len(com)+1:]
+            command_lst = [com] + data.split()
+            return COMMAND_DICT[com](command_lst)
 
 
 def main():
