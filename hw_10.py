@@ -6,19 +6,7 @@ class AddressBook(UserDict):
 
     def add_record(self, record):
         """Сохраняет записи в AddressBook"""
-        self.data[record.name.value] = record.phone_list
-
-    def record_search(self, name):
-        """Поиск контактов по имени"""
-        nm = self.data.get(name)
-        return f'{name} {", ".join(nm)}' if nm else 'Такого имени нет в AddressBook'
-
-    def show_all(self, *args, **kwargs):
-        """Возвращает все сохранённе контакты в виде текста"""
-        text = ''
-        for name, phones in self.data.items():
-            text += f'{name} {", ".join(phones)}\n'
-        return text if text else 'В AddressBook нет записей'
+        self.data[record.name.value] = record
 
     def del_user(self, name):
         self.data.pop(name.title())
@@ -36,34 +24,47 @@ class Name(Field):
 
 class Phone(Field):
     def __init__(self, value):
+        if not value.isdigit():
+            raise ValueError('Only numbers')
         self.value = value
+
+    def __str__(self):
+        return self.value
 
 
 class Record:
     """отвечает за логику добавления/удаления/редактирования необязательных полей
     и хранения обязательного поля Name."""
-    def __init__(self, name, address_book):
+    def __init__(self, name):
         self.name = Name(name.title())
-        self.phone_list = address_book.get(name.title(), [])
+        self.phone_list = []
+
+    def search_in_phone_list(self, phone):
+        """Функция возвращает индекс объекта в списке self.phone_list если Phone.value == phone иначе None"""
+        for i, ph in enumerate(self.phone_list):
+            if ph.value == phone:
+                return i
 
     def add_phone(self, phone):
-        self.phone_list.append(Phone(phone).value)
-        return f'Phone number for user "{self.name.value}" added'
+        """Добавляет Phone в phone_list"""
+        if self.search_in_phone_list(phone) is None:
+            self.phone_list.append(Phone(phone))
+            return f'Phone number for user "{self.name.value}" added'
+        return f'Number {phone} is already in the contact list'
 
     def del_phone(self, phone):
-        try:
-            self.phone_list.remove(phone)
-            return f'Phone number for user "{self.name.value}" deleted'
-        except ValueError:
-            return f'Такого номера нет у {self.name.value}'
+        """Удаляет Phone(phone) из phone_list если находит соответствующий Phone.value"""
+        if (index_phone := self.search_in_phone_list(phone)) is not None:
+            self.phone_list.pop(index_phone)
+            return f'Phone number {phone} for user "{self.name.value}" deleted'
+        return f"{self.name.value} doesn't have that number"
 
     def edit_phone(self, phone, new_phone):
-        try:
-            self.phone_list.remove(phone)
-            self.add_phone(new_phone)
+        """Заменяет Phone(phone) на Phone(new_phone) если находит соответствующий Phone.value"""
+        if (index_phone := self.search_in_phone_list(phone)) is not None:
+            self.phone_list[index_phone] = Phone(new_phone)
             return f'number {phone} of user {self.name.value} changed to {new_phone}'
-        except ValueError:
-            return f'Такого номера нет у {self.name.value}'
+        return f"{self.name.value} doesn't have that number"
 
 
 EXIT_FLAG = False
@@ -75,47 +76,81 @@ def input_error(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except TypeError:
-            return 'Give me name and phone please'
         except ValueError:
             return 'Phone number is incorrect. It should only be numbers.'
-        except KeyError:
-            return 'Could not find or create a user with this name'
         except IndexError:
-            return 'Incorrect number of command arguments'
+            return 'Give me name and phone please'
+        except KeyError:
+            return 'This user name is not in the Book'
     return inner
 
 
 @input_error
 def add_command_handler(command_lst: list) -> str:
-    """Обработчик добавления нового контакта или изменения и удаления существующего"""
-    if len(command_lst) != 3 and command_lst[0] in ['add', 'del phone']:
-        raise TypeError
-    if not command_lst[2].isdigit():
-        return 'Phone number is incorrect. It should only be numbers.'
-    record = Record(command_lst[1], ADDRESS_BOOK)
-    if command_lst[0] == 'add':
-        text = record.add_phone(command_lst[2])
-    elif command_lst[0] == 'del phone':
-        text = record.del_phone(command_lst[2])
-    else:
-        text = record.edit_phone(command_lst[2], command_lst[3])
+    """Обработчик добавления нового контакта"""
+    if not (record := ADDRESS_BOOK.get(command_lst[1].title())):
+        record = Record(command_lst[1])
+    text = record.add_phone(command_lst[2])
     ADDRESS_BOOK.add_record(record)
     return text
 
 
 @input_error
-def del_user(command_lst: list):
-    """Функция удаляет пользователя вместе с контактами"""
-    return ADDRESS_BOOK.del_user(command_lst[1])
+def del_command_handler(command_lst: list) -> str:
+    """Обработчик удаления существующего телефона"""
+    record = ADDRESS_BOOK.get(command_lst[1].title())
+    if record:
+        text = record.del_phone(command_lst[2])
+        ADDRESS_BOOK.add_record(record)
+        return text
+    else:
+        return 'This user name is not in the Book'
+
+
+def change_command_handler(command_lst: list) -> str:
+    """Обработчик изменения существующего телефона"""
+    try:
+        record = ADDRESS_BOOK.get(command_lst[1].title())
+        if record:
+            text = record.edit_phone(command_lst[2], command_lst[3])
+            ADDRESS_BOOK.add_record(record)
+            return text
+        else:
+            return 'This user name is not in the Book'
+    except IndexError:
+        return 'name, phone number and new phone number are required'
 
 
 @input_error
+def del_user(command_lst: list):
+    """Функция удаляет пользователя вместе со всеми контактами"""
+    if len(command_lst) != 2:
+        return 'Give me name please'
+    return ADDRESS_BOOK.del_user(command_lst[1])
+
+
 def phone_command_handler(command_lst: list) -> str:
     """Обработчик команды phone"""
     if len(command_lst) != 2:
         return 'Give me name please'
-    return ADDRESS_BOOK.record_search(command_lst[1])
+    if record := ADDRESS_BOOK.get(command_lst[1].title()):
+        ls = []
+        for phone in record.phone_list:
+            ls.append(phone.value)
+        return f'{record.name.value} -> {", ".join(ls)}\n'
+    else:
+        return 'This user name is not in the Book'
+
+
+def show_all_phone(*args, **kwargs):
+    """список всех телефонов из AddressBook"""
+    text = ''
+    for name, record in ADDRESS_BOOK.items():
+        ls = []
+        for phone in record.phone_list:
+            ls.append(phone.value)
+        text += f'{name} -> {", ".join(ls)}\n'
+    return text or 'Address book is empty'
 
 
 def exit_function(*args, **kwargs) -> str:
@@ -131,15 +166,15 @@ def hello(*args, **kwargs):
 
 COMMAND_DICT = {
     'add': add_command_handler,
-    'change': add_command_handler,
+    'change': change_command_handler,
+    'del phone': del_command_handler,
+    'del user': del_user,
     'phone': phone_command_handler,
-    'show all': ADDRESS_BOOK.show_all,
+    'show all': show_all_phone,
     'good bye': exit_function,
     'close': exit_function,
     'exit': exit_function,
-    'hello': hello,
-    'del phone': add_command_handler,
-    'del user': del_user
+    'hello': hello
 }
 
 
@@ -173,4 +208,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
